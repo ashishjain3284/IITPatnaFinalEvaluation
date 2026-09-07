@@ -157,13 +157,11 @@ complaint-processor/
 │
 ├── docs/                     project report, presentation and diagrams
 ├── .github/workflows/tests.yml   GitHub Actions
-├── .env.example              template for the API key
-├── .gitignore                excludes .env and output/
+├── .env                      Secret file for the API key
+├── .gitignore                excludes .env, output/ and OgnoredFiles/
 ├── requirements.txt
-├── README.md                 this file
-├── HOW_TO_DEMO.md            a five-minute demonstration script
-├── GIT_SETUP.md              step-by-step GitHub instructions
-└── SKILLS_CHECKLIST.md       the twelve assessed skills mapped to the code
+└── README.md                 this file
+
 ```
 
 Each Python file opens with a comment block explaining what it is for, and every function has
@@ -177,7 +175,7 @@ a docstring.
 
 ```bash
 # 1. Get the project
-git clone https://github.com/<your-username>/complaint-processor.git
+git clone https://github.com/ashishjain3284/IITPatnaFinalEvaluation.git
 cd complaint-processor
 
 # 2. (Recommended) create a virtual environment
@@ -494,8 +492,5 @@ grow unexpectedly with an unusually long input.
 
 | Document | Purpose |
 |---|---|
-| [`SKILLS_CHECKLIST.md`](SKILLS_CHECKLIST.md) | The twelve assessed skills mapped to the exact file and function |
-| [`HOW_TO_DEMO.md`](HOW_TO_DEMO.md) | A five-minute walkthrough for demonstrating the project |
-| [`GIT_SETUP.md`](GIT_SETUP.md) | Step-by-step commands for putting the project on GitHub |
 | `docs/Project_Report.pdf` | The full project report (27 pages) |
 | `docs/Project_Presentation.pptx` | The presentation deck (14 slides, with speaker notes) |

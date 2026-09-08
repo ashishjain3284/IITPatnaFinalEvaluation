@@ -72,9 +72,20 @@ git commit -m "Add batch runner, logging and CSV report"
 git add test_basic.py .github/
 git commit -m "Add tests and GitHub Actions workflow"
 
+git add streamlit_app.py
+git commit -m "Add Streamlit web interface over the existing pipeline"
+
+git add Dockerfile .dockerignore apprunner.yaml DEPLOYMENT.md
+git commit -m "Add container and deployment configuration for Azure and AWS"
+
 git add data/ README.md HOW_TO_DEMO.md GIT_SETUP.md SKILLS_CHECKLIST.md
 git commit -m "Add sample documents and documentation"
 ```
+
+Notice that the web interface and the container are their **own** commits, after the pipeline
+is already working. That is the honest history: the project was built as a batch processor
+first, and the UI was added on top without changing it. An evaluator reading `git log` can see
+that, and `git show` on the Streamlit commit proves that no existing module was touched.
 
 Check the history:
 

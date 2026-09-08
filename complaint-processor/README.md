@@ -5,7 +5,13 @@ each one, uses an LLM to extract structured case data, write a reply to the cust
 write an internal summary for management — then consolidates the whole batch into one report.
 
 Built with **Python, OpenAI, LangChain, LangGraph and Pydantic**.
-Run the entire project with a single command: **`python app.py`**
+
+Two ways to run it, both using the same pipeline:
+
+| | Command | What it does |
+|---|---|---|
+| **Batch** | `python app.py` | Processes every document in `data/` and writes `output/` |
+| **Web** | `streamlit run streamlit_app.py` | The same pipeline in a browser — this is what gets deployed |
 
 *Final Project 1 — Certification Programme in Generative and Agentic AI Development*
 
@@ -25,6 +31,7 @@ Run the entire project with a single command: **`python app.py`**
 10. [Sample outputs](#10-sample-outputs)
 11. [Key design decisions](#11-key-design-decisions)
 12. [Limitations](#12-limitations)
+13. [Deployment](#13-deployment)
 
 ---
 
@@ -132,6 +139,8 @@ complaint-processor/
 │
 ├── app.py                    ← THE FILE YOU RUN (234 lines)
 │                               batch loop, saving, CSV report, logging
+├── streamlit_app.py          ← THE WEB VERSION (the deployed entry point)
+│                               a UI over the same pipeline; changes nothing below
 ├── config.py                 all settings in one place (46 lines)
 ├── models.py                 three Pydantic schemas (151 lines)
 ├── document_reader.py        txt / pdf / docx → plain text (90 lines)
@@ -157,8 +166,11 @@ complaint-processor/
 │
 ├── docs/                     project report, presentation and diagrams
 ├── .github/workflows/tests.yml   GitHub Actions
-├── .env                      Secret file for the API key
-├── .gitignore                excludes .env, output/ and OgnoredFiles/
+├── Dockerfile                builds the container the cloud runs
+├── .dockerignore             keeps .env, output/ and docs/ out of the image
+├── apprunner.yaml            AWS App Runner build/start config (no container needed)
+├── .env.example              template for the API key
+├── .gitignore                excludes .env and output/
 ├── requirements.txt
 └── README.md                 this file
 
@@ -176,7 +188,7 @@ a docstring.
 ```bash
 # 1. Get the project
 git clone https://github.com/ashishjain3284/IITPatnaFinalEvaluation.git
-cd complaint-processor
+cd IITPatnaFinalEvaluation/complaint-processor
 
 # 2. (Recommended) create a virtual environment
 python -m venv .venv
@@ -221,6 +233,11 @@ Settings that are not secrets live in `config.py` rather than in `.env`:
 
 ## 8. How to run the application
 
+There are two entry points. They share the same pipeline — the web version imports the same
+modules and calls the same functions, so nothing has to be kept in step between them.
+
+### 8.1 The batch version — `python app.py`
+
 ```bash
 python app.py
 ```
@@ -258,7 +275,26 @@ enquiry_006.txt       success   Other             No        Closed        Low
 **To use your own documents:** drop any `.txt`, `.pdf` or `.docx` file into `data/` and run it
 again. Nothing else needs to change. Delete the `output/` folder to start from a clean slate.
 
-**To run the tests** (no API key needed, under a second, costs nothing):
+### 8.2 The web version — `streamlit run streamlit_app.py`
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Then open <http://localhost:8501>. The page lets you either process the bundled sample
+documents or upload your own, and shows for each one the structured data, the customer email
+and the internal summary, plus a downloadable `final_report.csv`.
+
+This is the entry point that gets deployed — see [section 13](#13-deployment).
+
+`streamlit_app.py` is a wrapper, not a rewrite. It imports `document_reader`, `workflow` and
+`config` exactly as `app.py` does and calls the same three functions. **No existing module was
+changed to add it.** The one deliberate difference is that it returns results as downloads
+rather than writing `output/`, because a deployed container's filesystem is temporary.
+
+### 8.3 The tests
+
+No API key needed, under a second, costs nothing:
 
 ```bash
 pytest -v
@@ -485,12 +521,74 @@ grow unexpectedly with an unusually long input.
   untested.
 - **No persistence beyond files.** Results are written to disk, not to a database or CRM, so
   there is no trend reporting across runs.
+- **The deployed version has no authentication.** Anyone with the URL can process documents
+  and spend the deployment's API credits. See section 13.
+
+---
+
+## 13. Deployment
+
+The web entry point (`streamlit_app.py`) is packaged as a container and deployed to a cloud
+platform, which gives a public HTTPS URL.
+
+### What was added
+
+| File | Purpose |
+|---|---|
+| `streamlit_app.py` | The web interface. The only new application code |
+| `Dockerfile` | Builds the container image. Azure builds it for you in the cloud |
+| `.dockerignore` | Keeps `.env`, `output/` and `docs/` out of the image |
+| `apprunner.yaml` | Lets AWS App Runner build and start the app straight from GitHub |
+| `DEPLOYMENT.md` | Step-by-step commands for Azure and for AWS |
+
+The six original modules are unchanged.
+
+### Docker is not required
+
+Both routes below build in the cloud, so nothing has to be installed and run locally:
+
+| Platform | Service | How it builds | Docker needed? |
+|---|---|---|---|
+| **Azure** | App Service for Containers | `az acr build` uploads the folder and builds the image on Azure | No |
+| **AWS** | App Runner | Reads `apprunner.yaml` and builds straight from the GitHub repository | No |
+
+On a locked-down machine where nothing can be installed at all, **Azure Cloud Shell**
+(<https://shell.azure.com>) runs the whole Azure route in the browser.
+
+Full commands for both are in **[`DEPLOYMENT.md`](DEPLOYMENT.md)**.
+
+### Check it locally first
+
+```bash
+streamlit run streamlit_app.py
+```
+
+If that works at <http://localhost:8501>, deployment is only a matter of pushing the code.
+
+### The API key in the cloud
+
+The key is **never** built into the image — `.dockerignore` excludes `.env`, and the
+`Dockerfile` never copies a key. In the cloud it is set as a platform setting:
+
+- **Azure** — *Configuration → Application settings* → `OPENAI_API_KEY`
+- **AWS App Runner** — *Configuration → Environment variables* → `OPENAI_API_KEY`, or better,
+  a reference to an AWS Secrets Manager secret
+
+`config.py` reads it with `os.getenv`, which is the same call that reads the local `.env`, so
+the application code does not know or care where the key came from.
+
+### Two things to know about the deployed version
+
+- **The filesystem is temporary.** Anything written inside the container is lost when the
+  platform restarts it, which is why the web version returns results as downloads instead of
+  writing `output/`.
+- **The first request after a restart takes 30–60 seconds** while the container starts. Open
+  the URL once yourself before sharing it.
 
 ---
 
 ## Further reading in this repository
 
 | Document | Purpose |
-|---|---|
 | `docs/Project_Report.pdf` | The full project report (27 pages) |
 | `docs/Project_Presentation.pptx` | The presentation deck (14 slides, with speaker notes) |

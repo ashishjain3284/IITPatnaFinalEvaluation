@@ -15,12 +15,16 @@ validating the Pydantic models, and building the CSV row.
 because tests are what let the GitHub Actions workflow check every commit.)
 """
 
+from pathlib import Path
+
 import pytest
 
 import app
 import config
 import document_reader
 from models import CaseSummary, ComplaintData, CustomerEmail
+
+PROJECT_FOLDER = Path(__file__).parent
 
 # ---------------------------------------------------------------------------
 # Tests for document_reader.py  (FILE PROCESSING + ERROR HANDLING)
@@ -174,3 +178,51 @@ def test_every_csv_row_has_exactly_the_expected_columns():
     empty_row = dict.fromkeys(app.CSV_COLUMNS, "")
     assert set(empty_row) == set(app.CSV_COLUMNS)
     assert "escalation_required" in app.CSV_COLUMNS
+
+
+# ---------------------------------------------------------------------------
+# Tests for the deployment setup  (DEPLOYMENT)
+#
+# These do not import streamlit - importing it would execute the whole page.
+# They check the things that silently break a deployment.
+# ---------------------------------------------------------------------------
+
+
+def test_the_web_entry_point_and_dockerfile_exist():
+    """Both entry points must be present: the batch one and the web one."""
+    assert (PROJECT_FOLDER / "app.py").exists()
+    assert (PROJECT_FOLDER / "streamlit_app.py").exists()
+    assert (PROJECT_FOLDER / "Dockerfile").exists()
+
+
+def test_the_dockerfile_starts_the_file_that_actually_exists():
+    """Renaming the web entry point without updating the Dockerfile is the
+    classic way to deploy a container that will not start."""
+    dockerfile = (PROJECT_FOLDER / "Dockerfile").read_text(encoding="utf-8")
+    assert "streamlit run streamlit_app.py" in dockerfile
+    # $PORT must be used, or the cloud platform cannot reach the container.
+    assert "--server.port=$PORT" in dockerfile
+
+
+def test_the_apprunner_config_starts_the_same_file():
+    """AWS App Runner can build from source instead of a container image.
+    Its start command must match the Dockerfile's, or the two routes drift."""
+    config_file = (PROJECT_FOLDER / "apprunner.yaml").read_text(encoding="utf-8")
+    assert "streamlit run streamlit_app.py" in config_file
+    assert "port: 8501" in config_file
+
+
+def test_the_image_can_never_contain_the_api_key():
+    """The single most important line in .dockerignore.
+
+    If .env were copied into the image, the key would travel to the container
+    registry with it.
+    """
+    ignored = (PROJECT_FOLDER / ".dockerignore").read_text(encoding="utf-8")
+    assert ".env" in ignored.split()
+
+
+def test_requirements_lists_streamlit():
+    """The container installs only what requirements.txt names."""
+    requirements = (PROJECT_FOLDER / "requirements.txt").read_text(encoding="utf-8")
+    assert "streamlit" in requirements

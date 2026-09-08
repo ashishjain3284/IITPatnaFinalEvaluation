@@ -21,12 +21,44 @@ The twelve skills the project is assessed on, and exactly where to find each one
 
 ## Extra credit, if it comes up
 
-- **Testing** — `test_basic.py`, 15 tests, no API key needed, runs in under a second.
+- **Testing** — `test_basic.py`, 20 tests, no API key needed, runs in under a second.
 - **Continuous integration** — `.github/workflows/tests.yml` runs those tests on every push.
+- **Web interface** — `streamlit_app.py`: upload documents or run the sample batch, see all
+  three artefacts per document, download the consolidated CSV.
+- **Deployment** — `Dockerfile`, `apprunner.yaml` and `DEPLOYMENT.md`: deployed to Azure App
+  Service for Containers or AWS App Runner, with the API key supplied as a platform setting.
+  Both routes build in the cloud, so no local Docker installation is needed.
 - **Cost control** — long documents are truncated (`config.MAX_CHARACTERS`), and the model is
   the cheap `gpt-4o-mini` by default. About $0.03 for the whole sample batch.
-- **Security** — the API key lives in `.env`, which is git-ignored. Nothing sensitive is
-  written into the code or the outputs.
+- **Security** — the API key lives in `.env`, which is git-ignored, and `.dockerignore` keeps
+  it out of the container image too. Nothing sensitive is written into the code or the outputs.
+
+---
+
+## The deployment question, if the panel asks it
+
+**"How did a command-line batch job become a URL?"**
+
+> A second entry point was added, not a rewrite. `streamlit_app.py` imports `document_reader`,
+> `workflow` and `config` exactly as `app.py` does, and calls the same three functions. All six
+> original modules are unchanged — `git show` on that commit proves it. That is the payoff of
+> having kept the orchestration separate from the runner: the pipeline did not know or care
+> that it was being called from a batch loop, so a web page could call it instead.
+
+**"Why does the web version not write to `output/`?"**
+
+> Because a container's filesystem is temporary. Anything written inside it is lost when the
+> platform restarts the container, and a second visitor may be served by a different instance
+> that cannot see the first one's files. The web version returns the results to the browser as
+> downloads instead. The batch version still writes `output/`, because it runs on a real disk.
+
+**"Where does the API key live in production?"**
+
+> In the platform's settings store — Azure *Application settings*, or AWS App Runner
+> *Environment variables*, ideally backed by Secrets Manager. It is not in the repository, and
+> not in the image: `.dockerignore` excludes `.env`, and there is a test that asserts it does.
+> `config.py` reads the key with `os.getenv`, which is the same call that reads the local
+> `.env`, so no code changes between laptop and cloud.
 
 ---
 

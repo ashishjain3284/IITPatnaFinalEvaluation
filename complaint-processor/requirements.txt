@@ -9,5 +9,8 @@ python-dotenv>=1.0
 pypdf>=4.2
 python-docx>=1.1
 
+# For the web interface:  streamlit run streamlit_app.py
+streamlit>=1.36
+
 # For running the tests:  pytest -v
 pytest>=8.0

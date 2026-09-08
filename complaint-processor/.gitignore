@@ -10,5 +10,5 @@ __pycache__/
 .venv/
 venv/
 
-# Temporary files
+# Ignore files generated for Development Purpose
 IgnoredFiles/

@@ -19,6 +19,10 @@ python app.py
 
 Delete the `output/` folder afterwards so the demo starts clean.
 
+If you have deployed the project (see `DEPLOYMENT.md`), **open the URL once before the demo**
+and leave it in a browser tab. The first request after a restart takes 30–60 seconds while the
+container wakes up, and you do not want to spend that minute in front of the panel.
+
 ---
 
 ## Step 1 — Show the problem (30 seconds)
@@ -112,8 +116,9 @@ Delete `data/broken.txt` afterwards.
 pytest -v
 ```
 
-> "Fifteen tests, and none of them call OpenAI — so they run in under a second and cost
-> nothing. They check the file reading, the Pydantic validation and the report building."
+> "Twenty tests, and none of them call OpenAI — so they run in under a second and cost
+> nothing. They check the file reading, the Pydantic validation, the report building, and that
+> the container can never contain my API key."
 
 Then open your GitHub repository:
 
@@ -123,6 +128,37 @@ Then open your GitHub repository:
 
 Also worth showing: `git log --oneline`, and `output/run.log` — the timestamped record the
 run leaves behind.
+
+---
+
+## Step 7 — The deployed application (1 minute)
+
+**This is the strongest closing moment, so keep it for last.**
+
+Switch to the browser tab with your deployed URL.
+
+> "The same project is also running in the cloud. This is not a different program — it is the
+> same pipeline behind a web page."
+
+Choose **Use the sample documents** and press **Process documents**. While it runs:
+
+> "It's calling exactly the code you just watched on the command line."
+
+When the results appear, open one of the panels and show the three tabs, then press **Download
+final_report.csv**.
+
+Now open `streamlit_app.py` in your editor and scroll to the imports:
+
+> "The important thing is what this file *doesn't* do. It imports `document_reader`,
+> `workflow` and `config` and calls the same three functions `app.py` calls. Not one of the six
+> original modules was changed to add the interface — you can see that in `git log`, because
+> the UI is its own commit that touches nothing else."
+
+Finally, show `Dockerfile` briefly:
+
+> "And this is what gets deployed. Azure builds this image from the repository — I never ran
+> Docker on my own machine. The key is never inside the image: it's an application setting on
+> the platform, and there's a test that asserts `.dockerignore` excludes `.env`."
 
 ---
 
@@ -148,9 +184,32 @@ then 4. If all three fail, that document is marked as failed in the CSV with the
 the batch carries on with the next one.
 
 **"What would you add next?"**
-OCR, so scanned PDFs work too. Automatic routing of escalated cases to the right team. And a
-small web interface so a non-technical user can drop files in.
+OCR, so scanned PDFs work too. Automatic routing of escalated cases to the right team. And
+authentication on the deployed version, which currently has none.
 
 **"Can it handle 1,000 documents?"**
 The loop already handles any number. For that volume I'd process several documents at once
 using a thread pool, since the program spends nearly all of its time waiting for the API.
+
+**"How did a command-line batch job become a URL?"**
+A second entry point was added, not a rewrite. `streamlit_app.py` imports the same modules and
+calls the same functions; all six original modules are unchanged. That was possible because the
+orchestration was already separate from the runner — the pipeline never knew it was being
+called from a batch loop, so a web page could call it instead.
+
+**"Why doesn't the web version write to `output/`?"**
+A container's filesystem is temporary — anything written inside it is lost when the platform
+restarts it, and a second visitor may be served by a different instance that cannot see the
+first one's files. So the web version hands the results back to the browser as downloads. The
+batch version still writes `output/`, because it runs on a real disk.
+
+**"Where is your API key in the deployed version?"**
+In the platform's settings store — an Azure application setting, or an AWS App Runner
+environment variable backed by Secrets Manager. Not in the repository, and not in the image:
+`.dockerignore` excludes `.env`, and there is a test that asserts it.
+
+**"What are the weaknesses of the deployment?"**
+There is no authentication, so anyone with the URL can spend my API credits — that is the first
+thing I would fix, with Azure App Service's built-in authentication. It is also a single
+container, so two people processing a batch at once will wait for each other. Real volume
+belongs in a worker queue, not in a web request.
